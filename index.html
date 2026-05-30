@@ -7,24 +7,20 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-  background: #0d0d0d;
-  color: #fff;
+  background: #0d0d0d; color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
+  min-height: 100vh; display: flex; justify-content: center;
+  align-items: center; padding: 20px;
 }
-.container { width: 100%; max-width: 520px; }
+.container { width: 100%; max-width: 540px; }
 h1 {
   text-align: center; font-size: 24px; margin-bottom: 8px;
   background: linear-gradient(135deg, #fe2c55, #25f4ee);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-.subtitle { text-align: center; color: #666; font-size: 13px; margin-bottom: 28px; }
-.input-wrap { display: flex; gap: 10px; margin-bottom: 20px; }
+.subtitle { text-align: center; color: #666; font-size: 13px; margin-bottom: 24px; }
+.input-wrap { display: flex; gap: 10px; margin-bottom: 16px; }
 #urlInput {
   flex: 1; padding: 14px 18px; border: 2px solid #222;
   border-radius: 12px; background: #111; color: #fff; font-size: 14px;
@@ -32,39 +28,49 @@ h1 {
 }
 #urlInput:focus { border-color: #fe2c55; }
 #urlInput::placeholder { color: #444; }
-#downloadBtn {
-  padding: 14px 28px; border: none; border-radius: 12px;
-  background: linear-gradient(135deg, #fe2c55, #ff0050);
+.btn {
+  padding: 14px 24px; border: none; border-radius: 12px;
   color: #fff; font-size: 14px; font-weight: bold; cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s; white-space: nowrap;
+  transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+  white-space: nowrap;
 }
-#downloadBtn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(254,44,85,0.4); }
-#downloadBtn:active { transform: scale(0.97); }
-#downloadBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn-primary { background: linear-gradient(135deg, #fe2c55, #ff0050); }
+.btn-success { background: #00c853; color: #000; }
+.btn-outline { background: #222; border: 1px solid #444; }
+
 .result { display: none; }
 .result.show { display: block; }
+
 .info-card {
   background: #111; border: 1px solid #222; border-radius: 16px;
   padding: 20px; margin-top: 12px;
 }
 .desc {
-  color: #ccc; font-size: 14px; margin-bottom: 16px;
+  color: #ccc; font-size: 14px; margin-bottom: 10px;
   line-height: 1.6; word-break: break-all;
 }
-.dl-options { display: flex; flex-direction: column; gap: 10px; }
-.dl-option {
-  display: block; width: 100%; padding: 12px 20px; border: none;
-  border-radius: 10px; font-size: 14px; font-weight: bold; cursor: pointer;
-  text-align: center; text-decoration: none; transition: opacity 0.2s;
+.actions { display: flex; flex-direction: column; gap: 8px; }
+
+.cookie-section {
+  background: #1a1a0a; border: 1px solid #333; border-radius: 12px;
+  padding: 14px; margin-top: 12px; display: none;
 }
-.dl-option:hover { opacity: 0.85; }
-.dl-option.primary { background: #25f4ee; color: #000; }
-.dl-option.secondary { background: #fe2c55; color: #fff; }
-.dl-option.tertiary { background: #333; color: #fff; }
+.cookie-section.show { display: block; }
+.cookie-section p { color: #999; font-size: 12px; margin-bottom: 8px; }
+.cookie-section textarea {
+  width: 100%; height: 80px; background: #000; color: #0f0;
+  border: 1px solid #333; border-radius: 8px; padding: 8px;
+  font-size: 11px; font-family: monospace; resize: vertical;
+}
+.cookie-section .btn { margin-top: 8px; width: 100%; }
+
 .error {
   display: none; padding: 16px 20px; background: #1a0000;
   border: 1px solid #fe2c55; border-radius: 12px; color: #fe2c55;
-  font-size: 14px; margin-top: 12px;
+  font-size: 14px; margin-top: 12px; white-space: pre-wrap;
 }
 .error.show { display: block; }
 .loading { display: none; text-align: center; padding: 30px; color: #666; font-size: 14px; }
@@ -81,71 +87,127 @@ h1 {
 
 <div class="container">
   <h1>抖音无水印下载</h1>
-  <p class="subtitle">粘贴抖音分享链接，跳转在线工具下载</p>
+  <p class="subtitle">粘贴分享链接，直接下载到电脑</p>
 
   <div class="input-wrap">
-    <input type="text" id="urlInput" placeholder="粘贴抖音分享链接到这里...">
-    <button id="downloadBtn" onclick="doParse()">解析</button>
+    <input type="text" id="urlInput" placeholder="粘贴抖音分享链接...">
+    <button class="btn btn-primary" id="parseBtn" onclick="doParse()">解析</button>
   </div>
 
-  <div class="loading" id="loading">
-    <span class="spinner"></span>解析中...
-  </div>
+  <div class="loading" id="loading"><span class="spinner"></span>解析中...</div>
   <div class="error" id="error"></div>
 
   <div class="result" id="result">
     <div class="info-card">
       <div class="desc" id="resultDesc"></div>
-      <div class="dl-options" id="dlOptions"></div>
-      <p style="color:#555;font-size:11px;margin-top:14px;text-align:center;">
-        以下按钮将跳转到第三方在线下载网站
-      </p>
+      <div class="actions">
+        <button class="btn btn-success" id="directDlBtn" onclick="doDirectDownload()">直接下载</button>
+        <button class="btn btn-outline" id="webDlBtn" onclick="openWebDownload()">在线网站下载</button>
+      </div>
     </div>
+  </div>
+
+  <div class="cookie-section" id="cookieSection">
+    <p>需要 cookies 才能下载。用浏览器扩展导出 cookies 后粘贴到下面：</p>
+    <textarea id="cookieInput" placeholder="粘贴 Netscape 格式的 cookies..."></textarea>
+    <button class="btn btn-primary" onclick="saveCookies()">保存 Cookies 并重试</button>
   </div>
 </div>
 
 <script>
+let currentDownloadUrl = '';
+let currentWebUrl = '';
+
 async function doParse() {
   const input = document.getElementById('urlInput').value.trim();
   if (!input) return;
 
-  const btn = document.getElementById('downloadBtn');
-  const loading = document.getElementById('loading');
-  const error = document.getElementById('error');
-  const result = document.getElementById('result');
+  const btn = document.getElementById('parseBtn');
+  const err = document.getElementById('error');
+  const res = document.getElementById('result');
+  const load = document.getElementById('loading');
+  const cookieSec = document.getElementById('cookieSection');
 
-  result.classList.remove('show');
-  error.classList.remove('show');
-  loading.classList.add('show');
+  res.classList.remove('show');
+  err.classList.remove('show');
+  cookieSec.classList.remove('show');
+  load.classList.add('show');
   btn.disabled = true;
 
   try {
-    const resp = await fetch(`/api/parse?url=${encodeURIComponent(input)}`);
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
+    const r = await fetch(`/api/parse?url=${encodeURIComponent(input)}`);
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
 
-    document.getElementById('resultDesc').textContent = data.desc || '';
-
-    const container = document.getElementById('dlOptions');
-    container.innerHTML = '';
-    const colors = ['primary', 'secondary', 'tertiary'];
-    (data.downloadOptions || []).forEach((opt, i) => {
-      const a = document.createElement('a');
-      a.className = 'dl-option ' + (colors[i] || 'tertiary');
-      a.textContent = '在 ' + opt.name + ' 下载';
-      a.href = opt.url;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      container.appendChild(a);
-    });
-
-    result.classList.add('show');
+    document.getElementById('resultDesc').textContent = d.desc || '';
+    currentDownloadUrl = d.downloadDirect || '';
+    currentWebUrl = d.videoUrl || '';
+    res.classList.add('show');
   } catch (e) {
-    document.getElementById('error').textContent = '错误: ' + e.message;
-    document.getElementById('error').classList.add('show');
+    err.textContent = '错误: ' + e.message;
+    err.classList.add('show');
   } finally {
-    loading.classList.remove('show');
+    load.classList.remove('show');
     btn.disabled = false;
+  }
+}
+
+async function doDirectDownload() {
+  if (!currentDownloadUrl) return;
+  const err = document.getElementById('error');
+  const cookieSec = document.getElementById('cookieSection');
+  err.classList.remove('show');
+
+  try {
+    const r = await fetch(currentDownloadUrl);
+    if (r.status === 403) {
+      const d = await r.json();
+      if (d.needCookies) {
+        err.textContent = d.guide || '需要 Cookies';
+        err.classList.add('show');
+        cookieSec.classList.add('show');
+        return;
+      }
+      throw new Error(d.error || '下载失败');
+    }
+    if (!r.ok) throw new Error('下载失败: ' + r.status);
+
+    // 触发浏览器下载
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const cd = r.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename="?([^"]+)"?/);
+    a.download = m ? decodeURIComponent(m[1]) : 'douyin.mp4';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    err.textContent = '下载失败: ' + e.message;
+    err.classList.add('show');
+  }
+}
+
+function openWebDownload() {
+  if (currentWebUrl) window.open('https://snaptik.app/zh-cn?url=' + encodeURIComponent(currentWebUrl), '_blank');
+}
+
+async function saveCookies() {
+  const cookies = document.getElementById('cookieInput').value.trim();
+  if (!cookies) return;
+
+  try {
+    const r = await fetch('/api/cookies', { method: 'POST', body: cookies });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('cookieSection').classList.remove('show');
+      document.getElementById('error').classList.remove('show');
+      doDirectDownload();
+    }
+  } catch (e) {
+    document.getElementById('error').textContent = '保存失败: ' + e.message;
+    document.getElementById('error').classList.add('show');
   }
 }
 
@@ -155,9 +217,9 @@ document.getElementById('urlInput').addEventListener('keydown', e => {
 
 window.addEventListener('focus', async () => {
   try {
-    const text = await navigator.clipboard.readText();
-    if (text && (text.includes('douyin.com') || text.includes('v.douyin'))) {
-      document.getElementById('urlInput').value = text;
+    const t = await navigator.clipboard.readText();
+    if (t && /douyin\.com|v\.douyin/.test(t)) {
+      document.getElementById('urlInput').value = t;
     }
   } catch (e) {}
 });
