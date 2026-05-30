@@ -1,11 +1,45 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
 const PORT = 3456;
 
-// Douyin API 需要模拟移动端 User-Agent
+// 本机 SSL 证书环境有问题，外部请求跳过证书验证
+const insecureAgent = new https.Agent({ rejectUnauthorized: false });
+
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1';
+
+// 自定义 fetch 包装，使用 insecure agent
+async function fetchWithAgent(url, opts = {}) {
+  const urlObj = new URL(url);
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: urlObj.hostname,
+      port: 443,
+      path: urlObj.pathname + urlObj.search,
+      method: opts.method || 'GET',
+      headers: opts.headers || {},
+      agent: insecureAgent,
+    };
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 400,
+          status: res.statusCode,
+          headers: res.headers,
+          text: () => Promise.resolve(body),
+          json: () => { try { return Promise.resolve(JSON.parse(body)); } catch(e) { return Promise.reject(e); } },
+        });
+      });
+    });
+    req.on('error', reject);
+    if (opts.body) req.write(opts.body);
+    req.end();
+  });
+}
 
 function serveHTML(res) {
   const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf-8');
@@ -23,41 +57,35 @@ function jsonResponse(res, data, code = 200) {
   res.end(JSON.stringify(data));
 }
 
-// 从分享链接中提取视频 ID 或短链 code
 function extractId(input) {
   input = input.trim();
-  // 短链接: https://v.douyin.com/xxxxx/
   const shortMatch = input.match(/v\.douyin\.com\/([A-Za-z0-9]+)/);
   if (shortMatch) return { type: 'short', value: shortMatch[1] };
-  // 长链接: https://www.douyin.com/video/123456
   const longMatch = input.match(/douyin\.com\/video\/(\d+)/);
   if (longMatch) return { type: 'long', value: longMatch[1] };
-  // 纯数字视频 ID
   if (/^\d{10,}$/.test(input)) return { type: 'long', value: input };
   return null;
 }
 
-// 跟随短链重定向获取真实 URL 和视频 ID
 async function resolveShortLink(code) {
   const url = `https://v.douyin.com/${code}/`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithAgent(url, {
     method: 'GET',
     headers: { 'User-Agent': UA },
-    redirect: 'manual',
   });
-  const location = resp.headers.get('location') || '';
+  // 从最终 URL 或响应体提取 video id
+  const location = resp.headers?.location || '';
   const match = location.match(/video\/(\d+)/);
   if (match) return match[1];
-  // 尝试从 body 中提取
+  // 有些短链会返回 HTML
   const text = await resp.text();
   const bodyMatch = text.match(/video\/(\d+)/);
   return bodyMatch ? bodyMatch[1] : null;
 }
 
-// 从抖音视频页面获取无水印视频地址
 async function getVideoInfo(videoId) {
   const url = `https://www.douyin.com/video/${videoId}`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithAgent(url, {
     headers: {
       'User-Agent': UA,
       'Accept': 'text/html,application/xhtml+xml',
@@ -65,20 +93,22 @@ async function getVideoInfo(videoId) {
   });
   const html = await resp.text();
 
-  // 从页面中提取 RENDER_DATA (SSR 数据)
+  // 尝试 RENDER_DATA
   const renderMatch = html.match(/<script id="RENDER_DATA"[^>]*>([^<]+)<\/script>/);
   if (!renderMatch) {
-    // 尝试从 window._ROUTER_DATA 提取
+    // 尝试 _ROUTER_DATA
     const routerMatch = html.match(/window\._ROUTER_DATA\s*=\s*({.+?});<\/script>/s);
     if (routerMatch) {
       try {
         const data = JSON.parse(routerMatch[1]);
         const videoData = data?.loaderData?.video?.[videoId];
         if (videoData?.video?.playAddr) {
-          const playAddr = videoData.video.playAddr[0]?.src || videoData.video.playAddr;
+          const addr = typeof videoData.video.playAddr === 'string'
+            ? videoData.video.playAddr
+            : videoData.video.playAddr[0]?.src || videoData.video.playAddr[0];
           return {
-            videoUrl: playAddr,
-            noWatermarkUrl: playAddr,
+            videoUrl: addr,
+            noWatermarkUrl: addr,
             desc: videoData.desc || '',
             cover: videoData.video?.cover?.urlList?.[0] || '',
           };
@@ -91,7 +121,6 @@ async function getVideoInfo(videoId) {
   const raw = decodeURIComponent(renderMatch[1]);
   const data = JSON.parse(raw);
 
-  // 遍历数据结构找到视频信息
   function findVideo(obj, depth = 0) {
     if (!obj || depth > 15) return null;
     if (obj.video && obj.video.playAddr) return obj;
@@ -107,9 +136,12 @@ async function getVideoInfo(videoId) {
   const found = findVideo(data);
   if (!found) throw new Error('找不到视频播放地址');
 
-  const playAddr = typeof found.video.playAddr === 'string'
-    ? found.video.playAddr
-    : found.video.playAddr[0]?.src || found.video.playAddr[0];
+  let playAddr = '';
+  if (typeof found.video.playAddr === 'string') {
+    playAddr = found.video.playAddr;
+  } else if (Array.isArray(found.video.playAddr)) {
+    playAddr = found.video.playAddr[0]?.src || found.video.playAddr[0];
+  }
 
   if (!playAddr) throw new Error('播放地址为空');
 
@@ -124,9 +156,9 @@ async function getVideoInfo(videoId) {
 const server = http.createServer(async (req, res) => {
   const urlObj = new URL(req.url, `http://localhost:${PORT}`);
 
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -143,17 +175,20 @@ const server = http.createServer(async (req, res) => {
 
     try {
       const extracted = extractId(input);
-      if (!extracted) return jsonResponse(res, { error: '无效的抖音链接' }, 400);
+      if (!extracted) return jsonResponse(res, { error: '无效的抖音链接，请粘贴完整的分享链接' }, 400);
 
       let videoId = extracted.value;
       if (extracted.type === 'short') {
         videoId = await resolveShortLink(extracted.value);
-        if (!videoId) return jsonResponse(res, { error: '短链接解析失败' }, 400);
+        if (!videoId) return jsonResponse(res, { error: '短链接解析失败，请尝试粘贴完整链接' }, 400);
       }
 
+      console.log('解析视频 ID:', videoId);
       const info = await getVideoInfo(videoId);
+      console.log('成功获取视频:', info.desc?.substring(0, 30));
       jsonResponse(res, { ...info, videoId });
     } catch (e) {
+      console.error('解析错误:', e.message);
       jsonResponse(res, { error: e.message || '解析失败' }, 500);
     }
     return;
