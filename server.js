@@ -144,8 +144,17 @@ async function handler(req, res) {
         contentId,
         desc: `抖音${label} #${contentId}`,
         videoUrl: `https://www.douyin.com/video/${contentId}`,
-        // 告诉前端这个链接可以直接下载
         downloadDirect: `/api/download?url=${encodeURIComponent(pageUrl)}`,
+        downloadSites: [
+          { name: 'SnapTik', url: `https://snaptik.app/zh-cn?url=${encodeURIComponent(pageUrl)}` },
+          { name: 'Douyin Downloader', url: `https://douyin.wtf/?url=${encodeURIComponent(pageUrl)}` },
+          { name: 'SSSTik', url: `https://ssstik.io/zh?url=${encodeURIComponent(pageUrl)}` },
+          { name: 'TikMate', url: `https://tikmate.cc/zh?url=${encodeURIComponent(pageUrl)}` },
+          { name: 'TikFast', url: `https://tikfast.net/?url=${encodeURIComponent(pageUrl)}` },
+          { name: 'SaveTik', url: `https://savetik.app/?url=${encodeURIComponent(pageUrl)}` },
+          { name: 'DouVideo', url: `https://douvideo.com/download?url=${encodeURIComponent(pageUrl)}` },
+          { name: 'DownTik', url: `https://downtik.io/?url=${encodeURIComponent(pageUrl)}` },
+        ],
       });
     } catch (e) {
       json(res, { error: e.message }, 500);
