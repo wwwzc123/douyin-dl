@@ -35,30 +35,45 @@ function json(res, data, code = 200) {
   res.end(JSON.stringify(data));
 }
 
-// 提取视频 ID
-function extractVideoId(input) {
+// 提取内容 ID 和类型
+function extractInfo(input) {
   input = input.trim();
   let m = input.match(/v\.douyin\.com\/([A-Za-z0-9]+)/);
   if (m) return { type: 'short', value: m[1] };
   m = input.match(/douyin\.com\/video\/(\d+)/);
-  if (m) return { type: 'long', value: m[1] };
+  if (m) return { type: 'video', value: m[1] };
   m = input.match(/iesdouyin\.com\/share\/video\/(\d+)/);
-  if (m) return { type: 'long', value: m[1] };
-  if (/^\d{10,}$/.test(input)) return { type: 'long', value: input };
+  if (m) return { type: 'video', value: m[1] };
+  m = input.match(/iesdouyin\.com\/share\/note\/(\d+)/);
+  if (m) return { type: 'note', value: m[1] };
+  if (/^\d{10,}$/.test(input)) return { type: 'video', value: input };
   return null;
 }
 
-// 解析短链接
+// 解析短链接 -> { type, id }
 async function resolveShort(code) {
   const resp = await fetchURL(`https://v.douyin.com/${code}/`, {
     headers: { 'User-Agent': UA },
   });
   const loc = resp.headers?.location || '';
-  let m = loc.match(/(?:share\/)?video\/(\d+)/);
-  if (m) return m[1];
+
+  // 视频
+  let m = loc.match(/share\/video\/(\d+)/);
+  if (m) return { type: 'video', id: m[1] };
+  // 图文
+  m = loc.match(/share\/note\/(\d+)/);
+  if (m) return { type: 'note', id: m[1] };
+
+  // 从 body 中找
   const text = await resp.text();
+  m = text.match(/share\/video\/(\d+)/);
+  if (m) return { type: 'video', id: m[1] };
+  m = text.match(/share\/note\/(\d+)/);
+  if (m) return { type: 'note', id: m[1] };
   m = text.match(/video\/(\d+)/);
-  return m ? m[1] : null;
+  if (m) return { type: 'video', id: m[1] };
+
+  return null;
 }
 
 // 获取视频页面标题等信息
@@ -94,33 +109,35 @@ const server = http.createServer(async (req, res) => {
     if (!input) return json(res, { error: '请提供抖音视频链接' }, 400);
 
     try {
-      const extracted = extractVideoId(input);
-      if (!extracted) return json(res, { error: '无效的抖音链接格式' }, 400);
+      const info = extractInfo(input);
+      if (!info) return json(res, { error: '无效的抖音链接格式' }, 400);
 
-      let videoId = extracted.value;
-      if (extracted.type === 'short') {
-        videoId = await resolveShort(extracted.value);
-        if (!videoId) return json(res, { error: '短链接解析失败，请尝试复制完整链接' }, 400);
+      let contentType = info.type;
+      let contentId = info.value;
+
+      if (info.type === 'short') {
+        const resolved = await resolveShort(info.value);
+        if (!resolved) return json(res, { error: '短链接解析失败' }, 400);
+        contentType = resolved.type;
+        contentId = resolved.id;
       }
 
-      console.log('解析视频:', videoId);
+      console.log('解析:', contentType, contentId);
 
-      // 获取页面信息
-      const info = await getPageInfo(videoId);
-      console.log('标题:', info.desc?.substring(0, 30));
+      const pageUrl = contentType === 'note'
+        ? `https://www.iesdouyin.com/share/note/${contentId}/`
+        : `https://www.douyin.com/video/${contentId}`;
 
-      const videoUrl = `https://www.douyin.com/video/${videoId}`;
+      const label = contentType === 'note' ? '图文' : '视频';
 
-      // 提供多个下载入口
       json(res, {
-        videoId,
-        desc: info.desc || '抖音视频 #' + videoId,
-        cover: info.cover,
-        // 几个在线下载网站
+        type: contentType,
+        contentId,
+        desc: `抖音${label} #${contentId}`,
         downloadOptions: [
-          { name: 'SnapTik', url: `https://snaptik.app/zh-cn?url=${encodeURIComponent(videoUrl)}` },
-          { name: 'Douyin Downloader', url: `https://douyin.wtf/?url=${encodeURIComponent(videoUrl)}` },
-          { name: 'SSSTik', url: `https://ssstik.io/zh?url=${encodeURIComponent(videoUrl)}` },
+          { name: 'SnapTik', url: `https://snaptik.app/zh-cn?url=${encodeURIComponent(pageUrl)}` },
+          { name: 'Douyin Downloader', url: `https://douyin.wtf/?url=${encodeURIComponent(pageUrl)}` },
+          { name: 'SSSTik', url: `https://ssstik.io/zh?url=${encodeURIComponent(pageUrl)}` },
         ],
       });
 
