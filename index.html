@@ -16,189 +16,96 @@ body {
   align-items: center;
   padding: 20px;
 }
-.container {
-  width: 100%;
-  max-width: 520px;
-}
+.container { width: 100%; max-width: 520px; }
 h1 {
-  text-align: center;
-  font-size: 24px;
-  margin-bottom: 8px;
+  text-align: center; font-size: 24px; margin-bottom: 8px;
   background: linear-gradient(135deg, #fe2c55, #25f4ee);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-.subtitle {
-  text-align: center;
-  color: #666;
-  font-size: 13px;
-  margin-bottom: 28px;
-}
-.input-wrap {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-}
+.subtitle { text-align: center; color: #666; font-size: 13px; margin-bottom: 28px; }
+.input-wrap { display: flex; gap: 10px; margin-bottom: 20px; }
 #urlInput {
-  flex: 1;
-  padding: 14px 18px;
-  border: 2px solid #222;
-  border-radius: 12px;
-  background: #111;
-  color: #fff;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.3s;
+  flex: 1; padding: 14px 18px; border: 2px solid #222;
+  border-radius: 12px; background: #111; color: #fff; font-size: 14px;
+  outline: none; transition: border-color 0.3s;
 }
-#urlInput:focus {
-  border-color: #fe2c55;
-}
-#urlInput::placeholder {
-  color: #444;
-}
+#urlInput:focus { border-color: #fe2c55; }
+#urlInput::placeholder { color: #444; }
 #downloadBtn {
-  padding: 14px 28px;
-  border: none;
-  border-radius: 12px;
+  padding: 14px 28px; border: none; border-radius: 12px;
   background: linear-gradient(135deg, #fe2c55, #ff0050);
-  color: #fff;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  white-space: nowrap;
+  color: #fff; font-size: 14px; font-weight: bold; cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s; white-space: nowrap;
 }
-#downloadBtn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(254,44,85,0.4);
-}
-#downloadBtn:active {
-  transform: scale(0.97);
-}
-#downloadBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-.result {
-  display: none;
-  background: #111;
-  border: 1px solid #222;
-  border-radius: 16px;
-  overflow: hidden;
-}
-.result.show {
-  display: block;
-}
-.video-wrap {
-  position: relative;
-  width: 100%;
-  background: #000;
-}
-#resultVideo {
-  width: 100%;
-  display: block;
-  max-height: 400px;
-  object-fit: contain;
-}
-.video-info {
-  padding: 16px 20px;
+#downloadBtn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(254,44,85,0.4); }
+#downloadBtn:active { transform: scale(0.97); }
+#downloadBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+.result { display: none; }
+.result.show { display: block; }
+.info-card {
+  background: #111; border: 1px solid #222; border-radius: 16px;
+  padding: 20px; margin-top: 12px;
 }
 .desc {
-  color: #ccc;
-  font-size: 14px;
-  margin-bottom: 14px;
-  line-height: 1.5;
+  color: #ccc; font-size: 14px; margin-bottom: 16px;
+  line-height: 1.6; word-break: break-all;
 }
-.dl-btn {
-  display: block;
-  width: 100%;
-  padding: 14px;
-  border: none;
-  border-radius: 10px;
-  background: #25f4ee;
-  color: #000;
-  font-size: 15px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: opacity 0.2s;
+.dl-options { display: flex; flex-direction: column; gap: 10px; }
+.dl-option {
+  display: block; width: 100%; padding: 12px 20px; border: none;
+  border-radius: 10px; font-size: 14px; font-weight: bold; cursor: pointer;
+  text-align: center; text-decoration: none; transition: opacity 0.2s;
 }
-.dl-btn:hover {
-  opacity: 0.85;
-}
+.dl-option:hover { opacity: 0.85; }
+.dl-option.primary { background: #25f4ee; color: #000; }
+.dl-option.secondary { background: #fe2c55; color: #fff; }
+.dl-option.tertiary { background: #333; color: #fff; }
 .error {
-  display: none;
-  padding: 16px 20px;
-  background: #1a0000;
-  border: 1px solid #fe2c55;
-  border-radius: 12px;
-  color: #fe2c55;
-  font-size: 14px;
-  margin-top: 12px;
+  display: none; padding: 16px 20px; background: #1a0000;
+  border: 1px solid #fe2c55; border-radius: 12px; color: #fe2c55;
+  font-size: 14px; margin-top: 12px;
 }
-.error.show {
-  display: block;
-}
-.loading {
-  display: none;
-  text-align: center;
-  padding: 30px;
-  color: #666;
-  font-size: 14px;
-}
-.loading.show {
-  display: block;
-}
+.error.show { display: block; }
+.loading { display: none; text-align: center; padding: 30px; color: #666; font-size: 14px; }
+.loading.show { display: block; }
 .spinner {
-  display: inline-block;
-  width: 24px;
-  height: 24px;
-  border: 2px solid #333;
-  border-top-color: #fe2c55;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-right: 10px;
-  vertical-align: middle;
+  display: inline-block; width: 24px; height: 24px; border: 2px solid #333;
+  border-top-color: #fe2c55; border-radius: 50%; animation: spin 0.8s linear infinite;
+  margin-right: 10px; vertical-align: middle;
 }
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 
 <div class="container">
   <h1>抖音无水印下载</h1>
-  <p class="subtitle">粘贴抖音分享链接，下载无水印视频</p>
+  <p class="subtitle">粘贴抖音分享链接，跳转在线工具下载</p>
 
   <div class="input-wrap">
     <input type="text" id="urlInput" placeholder="粘贴抖音分享链接到这里...">
-    <button id="downloadBtn" onclick="doDownload()">解析</button>
+    <button id="downloadBtn" onclick="doParse()">解析</button>
   </div>
 
   <div class="loading" id="loading">
     <span class="spinner"></span>解析中...
   </div>
-
   <div class="error" id="error"></div>
 
   <div class="result" id="result">
-    <div class="video-wrap">
-      <video id="resultVideo" controls></video>
-    </div>
-    <div class="video-info">
+    <div class="info-card">
       <div class="desc" id="resultDesc"></div>
-      <button class="dl-btn" onclick="downloadVideo()">下载无水印视频</button>
+      <div class="dl-options" id="dlOptions"></div>
+      <p style="color:#555;font-size:11px;margin-top:14px;text-align:center;">
+        以下按钮将跳转到第三方在线下载网站
+      </p>
     </div>
   </div>
 </div>
 
 <script>
-let currentVideoUrl = '';
-
-async function doDownload() {
+async function doParse() {
   const input = document.getElementById('urlInput').value.trim();
   if (!input) return;
 
@@ -215,41 +122,37 @@ async function doDownload() {
   try {
     const resp = await fetch(`/api/parse?url=${encodeURIComponent(input)}`);
     const data = await resp.json();
+    if (data.error) throw new Error(data.error);
 
-    if (data.error) {
-      throw new Error(data.error);
-    }
+    document.getElementById('resultDesc').textContent = data.desc || '';
 
-    currentVideoUrl = data.noWatermarkUrl || data.videoUrl;
-    document.getElementById('resultVideo').src = data.videoUrl;
-    document.getElementById('resultDesc').textContent = data.desc || '（无描述）';
+    const container = document.getElementById('dlOptions');
+    container.innerHTML = '';
+    const colors = ['primary', 'secondary', 'tertiary'];
+    (data.downloadOptions || []).forEach((opt, i) => {
+      const a = document.createElement('a');
+      a.className = 'dl-option ' + (colors[i] || 'tertiary');
+      a.textContent = '在 ' + opt.name + ' 下载';
+      a.href = opt.url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      container.appendChild(a);
+    });
+
     result.classList.add('show');
   } catch (e) {
-    error.textContent = '错误: ' + e.message;
-    error.classList.add('show');
+    document.getElementById('error').textContent = '错误: ' + e.message;
+    document.getElementById('error').classList.add('show');
   } finally {
     loading.classList.remove('show');
     btn.disabled = false;
   }
 }
 
-function downloadVideo() {
-  if (!currentVideoUrl) return;
-  const a = document.createElement('a');
-  a.href = currentVideoUrl;
-  a.download = `douyin_${Date.now()}.mp4`;
-  a.target = '_blank';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
-// 回车提交
-document.getElementById('urlInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') doDownload();
+document.getElementById('urlInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doParse();
 });
 
-// 自动粘贴剪贴板
 window.addEventListener('focus', async () => {
   try {
     const text = await navigator.clipboard.readText();

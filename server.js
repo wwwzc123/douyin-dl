@@ -4,200 +4,137 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 3456;
-
-// 本机 SSL 证书环境有问题，外部请求跳过证书验证
-const insecureAgent = new https.Agent({ rejectUnauthorized: false });
-
+const agent = new https.Agent({ rejectUnauthorized: false });
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1';
 
-// 自定义 fetch 包装，使用 insecure agent
-async function fetchWithAgent(url, opts = {}) {
-  const urlObj = new URL(url);
+function fetchURL(url, opts = {}) {
   return new Promise((resolve, reject) => {
-    const options = {
-      hostname: urlObj.hostname,
-      port: 443,
-      path: urlObj.pathname + urlObj.search,
-      method: opts.method || 'GET',
-      headers: opts.headers || {},
-      agent: insecureAgent,
-    };
-    const req = https.request(options, (res) => {
+    const u = new URL(url);
+    https.request({
+      hostname: u.hostname, path: u.pathname + u.search,
+      method: opts.method || 'GET', headers: opts.headers || {}, agent,
+    }, res => {
       let body = '';
       res.on('data', c => body += c);
-      res.on('end', () => {
-        resolve({
-          ok: res.statusCode >= 200 && res.statusCode < 400,
-          status: res.statusCode,
-          headers: res.headers,
-          text: () => Promise.resolve(body),
-          json: () => { try { return Promise.resolve(JSON.parse(body)); } catch(e) { return Promise.reject(e); } },
-        });
-      });
-    });
-    req.on('error', reject);
-    if (opts.body) req.write(opts.body);
-    req.end();
+      res.on('end', () => resolve({
+        ok: res.statusCode >= 200 && res.statusCode < 400,
+        status: res.statusCode, headers: res.headers,
+        text: () => Promise.resolve(body),
+      }));
+    }).on('error', reject).end();
   });
 }
 
 function serveHTML(res) {
-  const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf-8');
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-  res.end(html);
+  res.end(fs.readFileSync(path.join(__dirname, 'index.html'), 'utf-8'));
 }
 
-function serve404(res) {
-  res.writeHead(404, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ error: 'Not found' }));
-}
-
-function jsonResponse(res, data, code = 200) {
+function json(res, data, code = 200) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(data));
 }
 
-function extractId(input) {
+// 提取视频 ID
+function extractVideoId(input) {
   input = input.trim();
-  const shortMatch = input.match(/v\.douyin\.com\/([A-Za-z0-9]+)/);
-  if (shortMatch) return { type: 'short', value: shortMatch[1] };
-  const longMatch = input.match(/douyin\.com\/video\/(\d+)/);
-  if (longMatch) return { type: 'long', value: longMatch[1] };
+  let m = input.match(/v\.douyin\.com\/([A-Za-z0-9]+)/);
+  if (m) return { type: 'short', value: m[1] };
+  m = input.match(/douyin\.com\/video\/(\d+)/);
+  if (m) return { type: 'long', value: m[1] };
+  m = input.match(/iesdouyin\.com\/share\/video\/(\d+)/);
+  if (m) return { type: 'long', value: m[1] };
   if (/^\d{10,}$/.test(input)) return { type: 'long', value: input };
   return null;
 }
 
-async function resolveShortLink(code) {
-  const url = `https://v.douyin.com/${code}/`;
-  const resp = await fetchWithAgent(url, {
-    method: 'GET',
+// 解析短链接
+async function resolveShort(code) {
+  const resp = await fetchURL(`https://v.douyin.com/${code}/`, {
     headers: { 'User-Agent': UA },
   });
-  // 从最终 URL 或响应体提取 video id
-  const location = resp.headers?.location || '';
-  const match = location.match(/video\/(\d+)/);
-  if (match) return match[1];
-  // 有些短链会返回 HTML
+  const loc = resp.headers?.location || '';
+  let m = loc.match(/(?:share\/)?video\/(\d+)/);
+  if (m) return m[1];
   const text = await resp.text();
-  const bodyMatch = text.match(/video\/(\d+)/);
-  return bodyMatch ? bodyMatch[1] : null;
+  m = text.match(/video\/(\d+)/);
+  return m ? m[1] : null;
 }
 
-async function getVideoInfo(videoId) {
-  const url = `https://www.douyin.com/video/${videoId}`;
-  const resp = await fetchWithAgent(url, {
-    headers: {
-      'User-Agent': UA,
-      'Accept': 'text/html,application/xhtml+xml',
-    },
+// 获取视频页面标题等信息
+async function getPageInfo(videoId) {
+  const resp = await fetchURL(`https://www.iesdouyin.com/share/video/${videoId}/`, {
+    headers: { 'User-Agent': UA },
   });
   const html = await resp.text();
-
-  // 尝试 RENDER_DATA
-  const renderMatch = html.match(/<script id="RENDER_DATA"[^>]*>([^<]+)<\/script>/);
-  if (!renderMatch) {
-    // 尝试 _ROUTER_DATA
-    const routerMatch = html.match(/window\._ROUTER_DATA\s*=\s*({.+?});<\/script>/s);
-    if (routerMatch) {
-      try {
-        const data = JSON.parse(routerMatch[1]);
-        const videoData = data?.loaderData?.video?.[videoId];
-        if (videoData?.video?.playAddr) {
-          const addr = typeof videoData.video.playAddr === 'string'
-            ? videoData.video.playAddr
-            : videoData.video.playAddr[0]?.src || videoData.video.playAddr[0];
-          return {
-            videoUrl: addr,
-            noWatermarkUrl: addr,
-            desc: videoData.desc || '',
-            cover: videoData.video?.cover?.urlList?.[0] || '',
-          };
-        }
-      } catch (e) {}
-    }
-    throw new Error('无法解析视频数据，抖音页面结构可能已更新');
-  }
-
-  const raw = decodeURIComponent(renderMatch[1]);
-  const data = JSON.parse(raw);
-
-  function findVideo(obj, depth = 0) {
-    if (!obj || depth > 15) return null;
-    if (obj.video && obj.video.playAddr) return obj;
-    for (const key of Object.keys(obj)) {
-      if (typeof obj[key] === 'object') {
-        const found = findVideo(obj[key], depth + 1);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  const found = findVideo(data);
-  if (!found) throw new Error('找不到视频播放地址');
-
-  let playAddr = '';
-  if (typeof found.video.playAddr === 'string') {
-    playAddr = found.video.playAddr;
-  } else if (Array.isArray(found.video.playAddr)) {
-    playAddr = found.video.playAddr[0]?.src || found.video.playAddr[0];
-  }
-
-  if (!playAddr) throw new Error('播放地址为空');
-
-  return {
-    videoUrl: playAddr,
-    noWatermarkUrl: playAddr,
-    desc: found.desc || '',
-    cover: found.video?.cover?.urlList?.[0] || found.video?.cover || '',
-  };
+  // 提取标题
+  const titleMatch = html.match(/<title>([^<]+)<\/title>/);
+  const title = titleMatch ? titleMatch[1].replace(' - 抖音', '').trim() : '';
+  // 提取描述
+  const descMatch = html.match(/"desc"\s*:\s*"([^"]+)"/);
+  const desc = descMatch ? descMatch[1] : title;
+  // 提取封面
+  const coverMatch = html.match(/"cover"\s*:\s*\{[^}]*"url_list"\s*:\s*\["([^"]+)"/);
+  const cover = coverMatch ? coverMatch[1] : '';
+  return { desc, cover };
 }
 
 const server = http.createServer(async (req, res) => {
-  const urlObj = new URL(req.url, `http://localhost:${PORT}`);
+  const u = new URL(req.url, `http://localhost:${PORT}`);
 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', '*');
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    return res.end();
-  }
+  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+  if (req.method === 'GET' && u.pathname === '/') return serveHTML(res);
 
-  if (req.method === 'GET' && urlObj.pathname === '/') {
-    return serveHTML(res);
-  }
-
-  if (req.method === 'GET' && urlObj.pathname === '/api/parse') {
-    const input = urlObj.searchParams.get('url');
-    if (!input) return jsonResponse(res, { error: '请提供抖音视频链接' }, 400);
+  if (req.method === 'GET' && u.pathname === '/api/parse') {
+    const input = u.searchParams.get('url');
+    if (!input) return json(res, { error: '请提供抖音视频链接' }, 400);
 
     try {
-      const extracted = extractId(input);
-      if (!extracted) return jsonResponse(res, { error: '无效的抖音链接，请粘贴完整的分享链接' }, 400);
+      const extracted = extractVideoId(input);
+      if (!extracted) return json(res, { error: '无效的抖音链接格式' }, 400);
 
       let videoId = extracted.value;
       if (extracted.type === 'short') {
-        videoId = await resolveShortLink(extracted.value);
-        if (!videoId) return jsonResponse(res, { error: '短链接解析失败，请尝试粘贴完整链接' }, 400);
+        videoId = await resolveShort(extracted.value);
+        if (!videoId) return json(res, { error: '短链接解析失败，请尝试复制完整链接' }, 400);
       }
 
-      console.log('解析视频 ID:', videoId);
-      const info = await getVideoInfo(videoId);
-      console.log('成功获取视频:', info.desc?.substring(0, 30));
-      jsonResponse(res, { ...info, videoId });
+      console.log('解析视频:', videoId);
+
+      // 获取页面信息
+      const info = await getPageInfo(videoId);
+      console.log('标题:', info.desc?.substring(0, 30));
+
+      const videoUrl = `https://www.douyin.com/video/${videoId}`;
+
+      // 提供多个下载入口
+      json(res, {
+        videoId,
+        desc: info.desc || '抖音视频 #' + videoId,
+        cover: info.cover,
+        // 几个在线下载网站
+        downloadOptions: [
+          { name: 'SnapTik', url: `https://snaptik.app/zh-cn?url=${encodeURIComponent(videoUrl)}` },
+          { name: 'Douyin Downloader', url: `https://douyin.wtf/?url=${encodeURIComponent(videoUrl)}` },
+          { name: 'SSSTik', url: `https://ssstik.io/zh?url=${encodeURIComponent(videoUrl)}` },
+        ],
+      });
+
     } catch (e) {
-      console.error('解析错误:', e.message);
-      jsonResponse(res, { error: e.message || '解析失败' }, 500);
+      console.error('错误:', e.message);
+      json(res, { error: e.message }, 500);
     }
     return;
   }
 
-  serve404(res);
+  res.writeHead(404, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: 'Not found' }));
 });
 
 server.listen(PORT, () => {
   console.log(`服务已启动: http://localhost:${PORT}`);
-  console.log('在浏览器打开上面的地址，粘贴抖音分享链接即可下载');
 });
