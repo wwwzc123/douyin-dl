@@ -38,7 +38,7 @@ function json(res, data, code = 200) {
 // 提取内容 ID 和类型
 function extractInfo(input) {
   input = input.trim();
-  let m = input.match(/v\.douyin\.com\/([A-Za-z0-9]+)/);
+  let m = input.match(/v\.douyin\.com\/([A-Za-z0-9_]+)/);
   if (m) return { type: 'short', value: m[1] };
   m = input.match(/douyin\.com\/video\/(\d+)/);
   if (m) return { type: 'video', value: m[1] };
